@@ -1,5 +1,5 @@
-from Scanner.mytoken import Token
-from Scanner.tokentype import TokenType
+from Scanner.token import Token
+from Scanner.token_type import TokenType
 from typing import List, Dict
 
 
@@ -31,11 +31,12 @@ class Scanner:
             "else": TokenType.ELSE,
             "while": TokenType.WHILE,
             "System.out.println": TokenType.SYSTEM_OUT_PRINTLN,
-            "length": TokenType.LENGTH,
+            ".length": TokenType.LENGTH,
             "true": TokenType.TRUE,
             "false": TokenType.FALSE,
             "this": TokenType.THIS,
             "new": TokenType.NEW,
+            "new int": TokenType.NEW_INT,
             "null": TokenType.NULL
         }
 
@@ -196,6 +197,11 @@ class Scanner:
 
         if 'System' in text:
             while self.is_alpha_numeric(self.peek()) or self.peek() == '.':
+                self.advance()
+            text = self.source[self.start:self.current]
+
+        if 'new' in text and self.source[(self.start + 4):(self.current + 4)] == 'int':
+            for _ in range(4):
                 self.advance()
             text = self.source[self.start:self.current]
     

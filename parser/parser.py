@@ -1,7 +1,6 @@
-from parser.parse_tree import TreeNode
-from Scanner.mytoken import Token
-from parser.parsing_table import PARSING_TABLE
-from parser.production_rules import PRODUCTION_RULES, EPSILON
+from Parser.parse_tree import TreeNode
+from Scanner.token import Token
+from Parser.production_rules import PARSING_TABLE, EPSILON
 
 STACK = []
 
@@ -49,7 +48,10 @@ TERMINAL_SYMBOLS = [
   'class',
   'id',
   '{',
-  'public	static	void	main',
+  'public',
+  'static',
+  'void',
+  'main',
   '(',
   'String',
   '[',
@@ -80,7 +82,7 @@ TERMINAL_SYMBOLS = [
   'false',
   'num',
   'null',
-  'new	int',
+  'new int',
   '.length',
   'this',
   'new',
@@ -92,23 +94,25 @@ START_SYMBOL = 'PROG'
 
 ROOT = TreeNode(None, "root")
 
-def stack_top (stack):
-  return stack[len(stack) - 1]
+def stack_top(stack):
+  if (len(stack) > 0):
+    return stack[-1]
+  else:
+    return None
 
 
-def is_terminal_symbol (token):
+def is_terminal_symbol(token):
   return token in TERMINAL_SYMBOLS
 
 
-def is_non_terminal_symboll (token):
+def is_non_terminal_symbol(token):
   return token in NON_TERMINAL_SYMBOLS
 
 
 def get_production(input_symbol, stack_symbol):
-  rule_index = PARSING_TABLE[input_symbol][stack_symbol] - 1
-  if (rule_index >= 0):
-    return PRODUCTION_RULES[rule_index]
-  else:
+  try:
+    return PARSING_TABLE[input_symbol][stack_symbol]
+  except KeyError:
     return None
 
 
@@ -140,7 +144,7 @@ def print_parse_tree(root: TreeNode, level =0):
 def parser (tokens: list[Token]):
   initialize_stack()
   cursor = 0
-  end_of_input = tokens[cursor].lexeme == '$'
+  end_of_input = tokens[cursor].value == '$'
   ROOT.children_count = 1
   parent_stack = [ROOT]
   
@@ -148,28 +152,39 @@ def parser (tokens: list[Token]):
     print(STACK)
     stack_symbol = stack_top(STACK)
     
-    if (is_terminal_symbol(stack_symbol)):
-      if (stack_symbol == tokens[cursor]):
+    if (stack_top is None):
+      end_of_input = True
+      print(f"ERRO:\n  Erro de sintaxe: Fim da pilha sintatica")
+      
+    
+    elif (is_terminal_symbol(stack_symbol)):
+      if (stack_symbol == tokens[cursor].value):
         tree_node = TreeNode(parent_stack[-1], STACK.pop())
         parent_stack[-1].children.append(tree_node)
-        print(tree_node.token)
+        print(f"Take: {stack_symbol}    Input: {tokens[cursor].value}\n")
         
         if (parent_stack[-1].is_complete()):
           parent_stack.pop()
         
         cursor += 1
+        if (stack_symbol == '$') :
+          end_of_input = True
+          print("FIM DO ARQUIVO\n\n")
+        
       else:
         end_of_input = True
-        print("ERRO: erro de sintaxe. Sem correspondencia com simbolo terminal")
+        print(f"ERRO:\n  Erro de sintaxe: Sem correspondencia com simbolo terminal\n    Token: {tokens[cursor].value}\n    Pilha: {stack_symbol}")
         
-    elif (is_non_terminal_symboll(stack_symbol)):
-      production = get_production(tokens[cursor].lexeme, stack_symbol)
+    elif (is_non_terminal_symbol(stack_symbol)):
+      production = get_production(tokens[cursor].value, stack_symbol)
+      
       if (production is None) :
         end_of_input = True
-        print("ERRO: erro de sintaxe. Não existe produção possível")
+        print(f"ERRO:\n  Erro de sintaxe: Não existe produção possível\n    Token: {tokens[cursor].value}\n    Pilha: {stack_symbol}")
+      
       else:
         tree_node = TreeNode(parent_stack[-1], STACK.pop())
-        print(tree_node.token)
+        print(f"Take: {stack_symbol}    Input: {tokens[cursor].value}\n")
         parent_stack[-1].children.append(tree_node)
         
         if (parent_stack[-1].is_complete()):
@@ -177,20 +192,21 @@ def parser (tokens: list[Token]):
           
         parent_stack.append(tree_node)
         
-        if (production != EPSILON):  
-          tree_node.append_children(production)    
+        if (production != EPSILON):
+          tree_node.append_children(production)
           append_production(production[::-1])
+          
         else:
           tree_node.children.append(TreeNode(tree_node, EPSILON))
           tree_node.children_count += 1
           parent_stack.pop()
+          
+    else:
+      end_of_input = True
+      print("ERRO:\n  Falha de parser: Simmbolo não é nem terminal nem não-terminal")
       
-    end_of_input = tokens[cursor].lexeme == '$'
     
     
 def test_parser(tokens):
   for token in tokens:
     print(token)
-
-# print_parse_tree(ROOT)
-    
