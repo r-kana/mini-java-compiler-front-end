@@ -1,9 +1,10 @@
 class TreeNode:
-  def __init__(self, parent=None, token=''):
+  def __init__(self, parent=None, token='', lexeme=None):
     self.parent = parent
     self.children = []
     self.token = token
     self.children_count = 0
+    self.lexeme = lexeme
     
     
   def append_children(self, production):
@@ -11,6 +12,6 @@ class TreeNode:
     
 
   def is_complete(self):
-    self.children_count == len(self.children)
+    return self.children_count == len(self.children)
     
   
