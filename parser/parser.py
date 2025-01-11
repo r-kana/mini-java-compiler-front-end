@@ -109,9 +109,9 @@ def is_non_terminal_symbol(token):
   return token in NON_TERMINAL_SYMBOLS
 
 
-def get_production(input_symbol, stack_symbol):
+def get_production(input_symbol, stack_input):
   try:
-    return PARSING_TABLE[input_symbol][stack_symbol]
+    return PARSING_TABLE[input_symbol][stack_input]
   except KeyError:
     return None
 
@@ -126,19 +126,22 @@ def append_production(production):
     STACK.append(production[i])
     
 
-def print_parse_tree(root: TreeNode, level =0):
+def print_parse_tree(root: TreeNode, level=0):
   tab = ""
   for _ in range(level):
-    tab += " "
+    tab += "."
     
   if (root.children_count != 0):
-    print(f"{tab}{root.token}: {'{'}")
+    children = ''
+    for child in root.children:
+      children += f" {child.token} "
+    
+    print(f"{tab} ↳ {root.token} ({children})")
     level += 1
     for child in root.children:
       print_parse_tree(child, level)
-    print(f"{tab}{'}'}")
   else:
-    print(f"{tab}{root.token}")
+    print(f"{tab} < {root.token} | {root.lexeme} >")
   
 
 def parser (tokens: list[Token]):
@@ -149,47 +152,45 @@ def parser (tokens: list[Token]):
   parent_stack = [ROOT]
   
   while(not end_of_input):
-    print(STACK)
-    stack_symbol = stack_top(STACK)
+    stack_input = stack_top(STACK)
     
-    if (stack_top is None):
+    if (stack_input is None):
       end_of_input = True
       print(f"ERRO:\n  Erro de sintaxe: Fim da pilha sintatica")
       
-    
-    elif (is_terminal_symbol(stack_symbol)):
-      if (stack_symbol == tokens[cursor].value):
-        tree_node = TreeNode(parent_stack[-1], STACK.pop())
-        parent_stack[-1].children.append(tree_node)
-        print(f"Take: {stack_symbol}    Input: {tokens[cursor].value}\n")
+    elif (is_terminal_symbol(stack_input)):
+      if (stack_input == tokens[cursor].value):
+        if (stack_input != '$') :
+          tree_node = TreeNode(parent_stack[-1], STACK.pop(), tokens[cursor].lexeme)
+          parent_stack[-1].children.append(tree_node)
+          
+          if (parent_stack[-1].is_complete()):
+            parent_stack.pop()
+          
+          cursor += 1
         
-        if (parent_stack[-1].is_complete()):
-          parent_stack.pop()
-        
-        cursor += 1
-        if (stack_symbol == '$') :
+        else:
           end_of_input = True
           print("FIM DO ARQUIVO\n\n")
-        
+          
       else:
         end_of_input = True
-        print(f"ERRO:\n  Erro de sintaxe: Sem correspondencia com simbolo terminal\n    Token: {tokens[cursor].value}\n    Pilha: {stack_symbol}")
+        print(f"ERRO:\n  Erro de sintaxe: Sem correspondencia com simbolo terminal\n    Token: {tokens[cursor].value}\n    Pilha: {stack_input}")
         
-    elif (is_non_terminal_symbol(stack_symbol)):
-      production = get_production(tokens[cursor].value, stack_symbol)
+    elif (is_non_terminal_symbol(stack_input)):
+      production = get_production(tokens[cursor].value, stack_input)
       
       if (production is None) :
         end_of_input = True
-        print(f"ERRO:\n  Erro de sintaxe: Não existe produção possível\n    Token: {tokens[cursor].value}\n    Pilha: {stack_symbol}")
+        print(f"ERRO:\n  Erro de sintaxe: Não existe produção possível\n    Token: {tokens[cursor].value}\n    Pilha: {stack_input}")
       
       else:
         tree_node = TreeNode(parent_stack[-1], STACK.pop())
-        print(f"Take: {stack_symbol}    Input: {tokens[cursor].value}\n")
         parent_stack[-1].children.append(tree_node)
         
         if (parent_stack[-1].is_complete()):
           parent_stack.pop()
-          
+        
         parent_stack.append(tree_node)
         
         if (production != EPSILON):
@@ -197,16 +198,10 @@ def parser (tokens: list[Token]):
           append_production(production[::-1])
           
         else:
-          tree_node.children.append(TreeNode(tree_node, EPSILON))
+          tree_node.children.append(TreeNode(tree_node, EPSILON, tokens[cursor].lexeme))
           tree_node.children_count += 1
           parent_stack.pop()
           
     else:
       end_of_input = True
       print("ERRO:\n  Falha de parser: Simmbolo não é nem terminal nem não-terminal")
-      
-    
-    
-def test_parser(tokens):
-  for token in tokens:
-    print(token)
