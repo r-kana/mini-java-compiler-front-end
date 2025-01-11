@@ -11,5 +11,5 @@ class Token():
     
     def __str__(self):
         literal_str = repr(self.literal) if self.literal is not None else "None"
-        return f"{'{ '}value: {self.value}, lexeme: {self.lexeme}, literal: {literal_str}{' }'}"
+        return f"{'{ '}value: {self.value}		| lexeme: {self.lexeme}		| literal: {literal_str}{' }'}"
     
