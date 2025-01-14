@@ -9,6 +9,14 @@ register_table = {
 
 label_count = 0
 
+
+def alloc_array_reg() -> str:
+  for reg in array_regs:
+    if (reg['free']):
+      reg['free'] = False
+      return reg['name']
+
+
 def create_label():
   label_count += 1
   return f"label_{label_count}"
@@ -51,7 +59,7 @@ def alloc_params(exps: TreeNode):
   if (more_exps.is_empty()):
     alloc_params(more_exps)
     
-  cgen(exps.child('EXP'))
+  cgen_exp(exps.child('EXP'))
   
   print(store_acc())
   
@@ -228,21 +236,102 @@ def cgen_base_exp(base_exp: TreeNode):
     print('li $a0 0\n')
 
   elif (first_child.token == 'new int'):
-    # CASO: ['new int', '[', 'EXP', ']'] -> Vetor de inteiros de EXP posições
+    
+    cgen_alloc_array(base_exp.children[2])
+
+
+def cgen_alloc_array(exp: TreeNode):
+    cgen_exp(exp)
+    offset = alloc_array_reg()
+    print('')
+    print(f"mv {offset}($fp) $sp\n")
+    print('li $t1 4\n')
+    print('mul $t1 $t1 $a0\n')
+    print('sub $sp $sp $t1\n')
+    print('addiu $sp $sp -4\n')
+    # FLAG: array_alloc = True
+
+
+def cgen_pexp_tail(pexp_tail: TreeNode):
+  first_child = pexp_tail.children[0]
+  if (first_child.token == '['):
+    #CASO: PEXP_TAIL -> [ EXP ] => Vetor de EXP posições
+    cgen_exp(first_child.children[1])
+  else:
+    #CASO: PEXP_TAIL -> .length
+    # TODO: Implementar funcao que recupera o tamanho de um vetor
     ...
+
 
 def cgen_pexp(pexp: TreeNode):
   first_child = pexp.children[0]
   if (first_child.token == 'id'):
-    cgen_rest_pexp()
+    if (not pexp.child('REST_PEXP').is_empty()):
+      cgen_rest_pexp(pexp.child('REST_PEXP'))
     ...
   elif (first_child.token == '('):
+    #CASO: BASE_SXP -> ( EXP ) REST_PEXP PEXP_TAIL
+    cgen_exp(pexp.child('EXP'))
+    if (not pexp.child('REST_PEXP').is_empty()):
+      cgen_rest_pexp(pexp.child('REST_PEXP'))
     ...
   elif (first_child.token == 'this'):
+    if (not pexp.child('REST_PEXP').is_empty()):
+      cgen_rest_pexp(pexp.child('REST_PEXP'))
     ...
   elif (first_child.token == 'new'):
+    #CASO: PEXP -> new id ( ) REST_PEXP => Instancia de classe
+    if (not pexp.child('REST_PEXP').is_empty()):
+      cgen_rest_pexp(pexp.child('REST_PEXP'))
     ...
 
+def cgen_rest_pexp(rest_pexp: TreeNode):
+  cgen_rest_pexp_tail(rest_pexp.child('REST_PEXP_TAIL'))
+
+
+def cgen_rest_pexp_tail(rest_pexp_tail: TreeNode):
+  first_child = rest_pexp_tail.children[0]
+  if (first_child.token == 'REST_PESP'):
+    cgen_rest_pexp(first_child)
+  else:
+    #CASO: REST_PEXP_TAIL -> ( OPT_EXPS ) REST_PEXP
+    opt_exps = first_child.child('OPT_EXPS')
+    if (not opt_exps.is_empty()):
+      cgen_opt_exps(opt_exps)
+    
+    cgen_rest_pexp(first_child.child('REST_PEXP'))
+
+
+def cgen_opt_exps(opt_exps: TreeNode):
+  #CASO: REST_PEXP -> . id ( EXPS ) REST_PEXP => Chama de função. 
+  #   EXPS são parametros da função
+  metodo_id = opt_exps.parent.parent.child('id').lexeme
+  print('sw $fp 0($sp)\n')
+  print('addiu $sp $sp -4\n')
+  
+  cgen_exps(opt_exps.children[0])
+  
+  print('sw $a0 0($sp)\n')
+  print('addiu $sp $sp -4\n')
+  print(f"jal {metodo_id}_entry\n")
+
+
+def cgen_exps(exps: TreeNode):
+  if(not exps.children[1].is_empty()):
+    cgen_more_exps(exps.children[1])  
+  cgen_exp(exps.children[0])
+  #TODO: Chamar método para armazenar parametro do método
+  print('sw $a0 0($sp)')
+  print('addiu $sp $sp -4')
+  
+  
+def cgen_more_exps(exps: TreeNode):
+  if(not exps.children[2].is_empty()):
+    cgen_more_exps(exps.children[2])
+  cgen_exp(exps.children[1])
+  #TODO: Chamar método para armazenar parametro do método
+  print('sw $a0 0($sp)')
+  print('addiu $sp $sp -4')
 
 
 
