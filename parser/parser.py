@@ -153,6 +153,8 @@ def parser (tokens: list[Token]):
   
   while(not end_of_input):
     stack_input = stack_top(STACK)
+    # print(f"Stack: {STACK}")
+    # print(f"Token: {tokens[cursor].value}")
     
     if (stack_input is None):
       end_of_input = True
