@@ -47,13 +47,19 @@ def add_var(var_id: str):
   )
 
 
-def add_param(param_id: str, method_id=None, class_id=None):
-  method = None
-  position = 0
-  if ( method_id is not None and class_id is not None):
-    method = class_methods[class_id]['methods'][method_id]
+def add_param(param_id: str, position: int):
+  method = class_methods[current_class]['methods'][current_method]
+  if (len(method['params']) > 0):
+    method['params'][position]['id'] = param_id
   else:
-    method = class_methods[current_class]['methods'][current_method]
+    position = len(method['params']) + 1
+    method['params'].append(
+      {'id': param_id, 'offset': 4 * position }
+    )
+
+
+def add_call_param(param_id: str, method_id: str, class_id: str):
+  method = class_methods[class_id]['methods'][method_id]
   position = len(method['params']) + 1
   method['params'].append(
     {'id': param_id, 'offset': 4 * position }
@@ -71,6 +77,16 @@ def add_class_var(var_id: str):
   method['vars'].append(
     {'id': var_id, 'offset': -4 * position }
   )
+
+
+def get_var(var_id: str) -> dict | None:
+  method = class_methods[current_class]['methods'][current_method]
+  vars = method['vars'] + method['params'] + class_methods[current_class]['vars']
+  result = None
+  for var in vars:
+    if (var['id'] == var_id):
+      result = var
+  return result
 
 
 def code_gen(root, level=0):
@@ -102,6 +118,196 @@ def cgen_class_list(class_list: TreeNode):
   cgen_class(class_list.children[0])
   if (not class_list.children[1].is_empty()):
     cgen_class_list(class_list.children[1])
+
+
+def cgen_class(classe: TreeNode):
+  add_class(classe.children[1].lexeme)
+  current_class = classe.children[1].lexeme
+  cgen_classe_d(classe.children[2])
+  if (not classe.children[3].is_empty()):
+    cgen_class_list(classe.children[3])
+
+
+def cgen_classe_d(classe_d: TreeNode):
+  if (classe_d.children[0].token == 'extends'):
+    cgen_class_var_list(classe_d.children[3])
+    cgen_metodo_list(classe_d.children[4])
+  else:
+    cgen_class_var_list(classe_d.children[1])
+    cgen_metodo_list(classe_d.children[2])
+
+
+def cgen_class_var_list(var_list: TreeNode):
+  add_class_var(var_list.children[0].children[1].lexeme)
+  if (not var_list.children[1].is_empty()):
+    cgen_class_var_list(var_list.children[1])
+
+
+def cgen_metodo_list(metodo_list: TreeNode):
+  cgen_metodo(metodo_list.children[0])
+  if (not metodo_list.children[1].is_empty()):  
+    cgen_metodo_list(metodo_list.children[1])
+
+
+def cgen_metodo(metodo: TreeNode):
+  add_method(metodo.children[2].lexeme)
+  current_method = metodo.children[2].lexeme
+  
+  print(f"{metodo.child('id').lexeme}_entry:\n")
+  print("move $fp $sp")
+  print("sw $ra 0($sp)")
+  print("addiu $sp $sp -4")
+  
+  cgen_metodo_d(metodo.child('METODO_D'))
+  vars_len = len(class_methods[current_class][current_method]['vars'])
+  paras_len = len(class_methods[current_class][current_method]['params'])
+  
+  print("lw $ra 4($sp)")
+  print(f"$sp $sp {8 + 4 * (vars_len + paras_len)}")
+  print("lw $fp 0($sp)")
+  print("jr $ra")
+
+
+def cgen_metodo_d(metodo_d: TreeNode): 
+  if (metodo_d.children[0].token == "PARAMS"):
+    cgen_params(metodo_d.children[0], 0) # Nomeando parâmetros
+    
+  cgen_class_vars() # Alocando variáveis da classe
+  cgen_var_list(metodo_d.child("VAR_LIST")) # Alocando variáveis
+  cgen_cmd_list(metodo_d.child("CMD_LIST"))
+  cgen_exp(metodo_d.child("EXP"))
+
+
+def cgen_params(params: TreeNode, position: int):
+  add_param(params.children[1].lexeme, position)
+  if (not params.children[2].is_empty()):
+    position += 1
+    cgen_params_list(params.children[2], position)
+
+
+def cgen_params_list(params_list: TreeNode, position: int):
+  add_param(params_list.children[2].lexeme, position)
+  if (not params_list.children[3].is_empty()):
+    position += 1
+    cgen_params_list(params_list.children[3], position)
+
+
+def cgen_var_list(var_list: TreeNode):
+  add_var(var_list.children[0].children[1].lexeme)
+  
+  print('addiu $sp $sp -4')
+  
+  if (not var_list.children[1].is_empty()):
+    cgen_var_list(var_list.children[1])
+
+
+def cgen_class_vars():
+  for _ in class_methods[current_class]['vars']:
+    print('addiu $sp $sp -4')
+
+
+def cgen_cmd_list(cmd_list: TreeNode):
+  cgen_cmd(cmd_list.children[0])
+  if(not cmd_list.children[1].is_empty()):
+    cgen_cmd_list(cmd_list.children[1])
+
+
+def cgen_cmd(cmd: TreeNode): #NOTE - cgen_cmd
+  if cmd.children[0].token == "{":
+    cgen_cmd_list(cmd.children[1])
+    
+  if cmd.children[0].token == "if":
+    cgen_if(cmd.children[2],cmd.children[4],cmd.children[6])
+    
+  if cmd.children[0] == "while":
+    cgen_while(cmd.child[2], cmd.children[4])
+    
+  if cmd.children[0] == "System.out.println":
+    cgen_print(cmd.child[2])
+    
+  if cmd.children[0] == "id":
+    # CASO: CMD -> id CMD_D
+    if (cmd.children[1].children[0].token == '='):
+      # CASO: CMD -> id CMD_D
+      # CASO: CMD_D -> = EXP ;
+      cgen_attribution(cmd)
+    else:
+      # CASO: CMD_D -> [ EXP ] = EXP ;
+      # CASO: CMD -> id [ EXP ] = EXP ;
+      cgen_array_attribution(cmd)
+
+
+def cgen_if(if_expression: TreeNode, then_cmd: TreeNode, else_cmd: TreeNode ):
+  label = create_label()
+  cgen(if_expression)
+  
+  print(f"beq $a0, $zero {label}_if_false")
+  
+  cgen(then_cmd)
+  
+  print(f"b {label}_end_if")
+  print(f"{label}_if_false:")
+  
+  cgen_cmd(else_cmd)
+  
+  print(f"{label}_end_if:")
+  print()
+
+
+def cgen_while(condition_expression: TreeNode, cmd_instructions: TreeNode):
+  label = create_label()
+  
+  print(f"{label}_start:")
+  
+  cgen_exp(condition_expression)
+  
+  print(f"beq $a0, $zero, {label}_end")
+  
+  cgen_cmd(cmd_instructions)
+  
+  print(f"J {label}_start")
+  print(f"{label}_end:")
+
+
+def cgen_print(exp: TreeNode):
+  cgen_exp(exp)
+  
+  print("li $v0, 1")
+  print("syscall")
+
+
+def cgen_attribution(cmd: TreeNode):
+  # CASO: CMD -> id CMD_D
+  # CASO: CMD_D -> = EXP ;
+  var_id = cmd.children[0].lexeme
+  offset = get_var(var_id)['offset']
+  cmd_d = cmd.children[1]
+  cgen_exp(cmd_d.children[1])
+  
+  print(f'sw $a0 {offset}($fp)\n')
+
+
+def cgen_array_attribution(cmd: TreeNode):
+  var_id = cmd.children[0].lexeme
+  offset = get_var(var_id)['offset']
+  
+  cmd_d = cmd.child('CMD_D')
+  cgen_exp(cmd_d.children[4]) # Valor
+  
+  print('sw $a0 0($sp)\n')
+  print('addiu $sp $sp -4\n')
+
+  cgen_exp(cmd_d.children[1]) # Array index
+  
+  print('li $t1 4')
+  print('mul $a0 $a0 $t1\n')
+  
+  print(f'lw $t1 {offset}($fp)')
+  print('sub $a0 $t1 $a0')
+  print('lw $t1 4($sp)\n')
+  print('sw $t1 $a0\n')
+  
+  print('addiu $sp $sp 4\n')
 
 
 def cgen_exp(exp: TreeNode):
@@ -285,14 +491,12 @@ def cgen_base_exp(base_exp: TreeNode):
     cgen_alloc_array(base_exp.children[2])
 
 
-def cgen_alloc_array(exp: TreeNode): #TODO - Alocacao de vetor
-    cgen_exp(exp)
-    print(f"sw $sp {offset}($fp)\n")
+def cgen_alloc_array(exp: TreeNode):
+    cgen_exp(exp) # $a0 contem o tamanho do vetor
     print('li $t1 4\n')
-    print('mul $t1 $t1 $a0\n')
+    print('mul $t1 $t1 $a0\n') # $t1 tem 4 * $a0
+    print('move $a0 $sp') # $a0 aponta para o inicio da lista
     print('sub $sp $sp $t1\n')
-    print('addiu $sp $sp -4\n')
-    # FLAG: array_alloc = True
 
 
 def cgen_pexp_tail(pexp_tail: TreeNode):
@@ -371,7 +575,7 @@ def cgen_exps(exps: TreeNode):
   if(not exps.children[1].is_empty()):
     cgen_more_exps(exps.children[1])
   cgen_exp(exps.children[0])
-  add_param('', method_call_id, class_call_id)
+  add_call_param('', method_call_id, class_call_id)
   
   print('sw $a0 0($sp)')
   print('addiu $sp $sp -4')
@@ -381,162 +585,7 @@ def cgen_more_exps(exps: TreeNode):
   if(not exps.children[2].is_empty()):
     cgen_more_exps(exps.children[2])
   cgen_exp(exps.children[1])
-  add_param('', method_call_id, class_call_id)
+  add_call_param('', method_call_id, class_call_id)
   
   print('sw $a0 0($sp)')
   print('addiu $sp $sp -4')
-
-
-def cgen_metodo_list(metodo_list: TreeNode):
-  cgen_metodo(metodo_list.children[0])
-  if (not metodo_list.children[1].is_empty()):  
-    cgen_metodo_list(metodo_list.children[1])
-
-
-def cgen_metodo(metodo: TreeNode):
-  add_method(metodo.children[2].lexeme)
-  current_method = metodo.children[2].lexeme
-  
-  print(f"{metodo.child('id').lexeme}_entry:\n")
-  print("move $fp $sp")
-  print("sw $ra 0($sp)")
-  print("addiu $sp $sp -4")
-  
-  cgen_metodo_d(metodo.child('METODO_D'))
-  vars_len = len(class_methods[current_class][current_method]['vars'])
-  paras_len = len(class_methods[current_class][current_method]['params'])
-  
-  print("lw $ra 4($sp)")
-  print(f"$sp $sp {8 + 4 * (vars_len + paras_len)}")
-  print("lw $fp 0($sp)")
-  print("jr $ra")
-
-#TODO - 18/01: Alocacao de parametros e variaveis da funcao
-def cgen_metodo_d(metodo_d: TreeNode): 
-  param_number = 0
-  if metodo_d.children[0].token == "PARAMS":
-    metod_d_child = metodo_d.children[0].child("PARAMS_LIST")
-    while metod_d_child != None: #TODO trocar para o method list
-      param_number += 1
-      metod_d_child = metod_d_child.child("PARAMS_LIST")
-  cgen_var_list(metodo_d.child("VAR_LIST"))
-  cgen_cmd_list(metodo_d.child("CMD_LIST"))
-  cgen_exp(metodo_d.child("EXP"))
-    
-  return param_number
-
-
-
-def cgen_var_list(var_list: TreeNode):
-  pass
-#   #TODO alocação extra para int[]
-#   var_number = 0
-#   local_variables = {}
-#   current_child = var_list.child("VAR_LIST")
-#   while current_child: 
-#     local_variables(current_child.child("VAR").child("id").lexeme) = var_number*4
-#     var_number += 1
-#     current_child = current_child.child("VAR_LIST")
-#   if var_number>0: 
-#     (f"addiu $sp $sp -{var_number*4}")
-#   return local_variables 
-
-
-def cgen_cmd_list(cmd_list: TreeNode):
-  cgen_cmd(cmd_list.children[0])
-
-  if(not cmd_list.children[1].is_empty()):
-      cgen_cmd_list(cmd_list.children[1])
-      
-      
-def cgen_cmd(cmd: TreeNode): #NOTE - cgen_cmd
-  if cmd.children[0].token == "{":
-    cgen_cmd_list(cmd.children[1])
-  if cmd.children[0].token == "if":
-    cgen_if(cmd.children[2],cmd.children[4],cmd.children[6])
-  if cmd.children[0] == "while":
-    cgen_while(cmd.child[2], cmd.children[4])
-  if cmd.children[0] == "System.out.println":
-    cgen_print(cmd.child[2])
-  if cmd.children[0] == "id":
-    # CASO: CMD -> id CMD_D
-    cmd_d = cmd.children[1]
-    if (cmd_d.children[0].token == '='):
-      # CASO: CMD -> id CMD_D
-      # CASO: CMD_D -> = EXP ;
-      cgen_attrib(cmd)
-      print('sw $a0 0($sp)\n')
-      print('addiu $sp $sp -4\n')
-    else:
-      # CASO: CMD_D -> [ EXP ] = EXP ;
-      # CASO: CMD -> id [ EXP ] = EXP ;
-      cgen_array_attrib(cmd)
-    
-def cgen_if(if_expression: TreeNode, then_cmd: TreeNode, else_cmd: TreeNode ):
-  label = create_label()
-
-  cgen(if_expression)
-  print(f"beq $a0, $zero {label}_if_false")
-  cgen(then_cmd)
-  print(f"b {label}_end_if")
-  print(f"{label}_if_false:")
-  cgen_cmd(else_cmd)
-  print(f"{label}_end_if:")
-  print()
-
-def cgen_while(condition_expression: TreeNode, cmd_instructions: TreeNode):
-  label = create_label()
-  print(f"{label}_start:")
-  cgen_exp(condition_expression)
-  print(f"beq $a0, $zero, {label}_end")
-  cgen_cmd(cmd_instructions)
-  print(f"J {label}_start")
-  print(f"{label}_end:")
-
-
-def cgen_print(exp: TreeNode):
-  cgen_exp(exp)
-  print("li $v0, 1")
-  print("syscall")
-
-def cgen_attrib(cmd: TreeNode):
-  # CASO: CMD -> id CMD_D
-  # CASO: CMD_D -> = EXP ;
-  cmd_d = cmd.children[1]
-  cgen_exp(cmd_d.children[1])
-  
-  
-def cgen_array_attrib(cmd: TreeNode):
-  cmd_d = cmd.child('CMD_D')
-  cgen_exp(cmd_d.children[4])
-  
-  print('sw $a0 0($sp)\n')
-  print('addiu $sp $sp -4\n')
-
-  cgen_exp(cmd_d.children[1])
-  
-  print('li $t1 4')
-  print('mul $a0 $a0 $t1\n')
-  print('sub $a0 $s0 $a0')
-  print('lw $t1 4($sp)\n')
-  print('lw $t1 $a0\n')
-  
-  print('addiu $sp $sp 4\n')
-  
-  
-def cgen_class(classe: TreeNode):
-  add_class(classe.children[1].lexeme)
-  current_class = classe.children[1].lexeme
-  cgen_classe_d(classe.children[2])
-  if (not classe.children[3].is_empty()):
-    cgen_class_list(classe.children[3])
-
-
-def cgen_classe_d(classe_d: TreeNode):
-  if (classe_d.children[0].token == 'extends'):
-    cgen_var_list(classe_d.children[3])
-    cgen_metodo_list(classe_d.children[4])
-  else:
-    cgen_var_list(classe_d.children[1])
-    cgen_metodo_list(classe_d.children[2])
-    
