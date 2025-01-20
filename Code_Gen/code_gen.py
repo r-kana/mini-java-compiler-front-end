@@ -122,6 +122,7 @@ def get_var(var_id: str) -> dict | None:
   for var in vars:
     if (var['id'] == var_id):
       result = var
+      break
   return result
 
 
@@ -346,17 +347,23 @@ def cgen_array_attribution(cmd: TreeNode):
   offset = get_var(var_id)['offset']
   
   cmd_d = cmd.child('CMD_D')
-  cgen_exp(cmd_d.children[4]) # Valor
+  cgen_exp(cmd_d.children[4]) # $a0 tem o valor
   
   file_write('sw $a0, 0($sp)\n')
   file_write('addiu $sp, $sp, -4\n')
 
-  cgen_exp(cmd_d.children[1]) # Array index
+  cgen_exp(cmd_d.children[1]) # $a0 tem o index do vetor
+  
+  file_write(f'lw $t1, {offset}($fp)\n')
+  file_write(f'lw $t1, 0($t1)\n')
+  file_write(f'slt $t1, $a0, $t1\n') # $a0 < tam.
+  file_write('beq $t1, $zero, prog_end\n') # Encerra se fora do intervalo
   
   file_write('li $t1, 4\n')
   file_write('mul $a0, $a0, $t1\n')
   
-  file_write(f'lw $t1, {offset}($fp)\n')
+  file_write(f'lw $t1, {offset}($fp)\n') # $t1 tem o ender. do elemento 0
+  file_write(f'addiu $t1, $t1, -4\n') # $t1 -> ender. elemento 0
   file_write('sub $a0, $t1, $a0\n')
   file_write('lw $t1, 4($sp)\n')
   file_write('sw $t1, 0($a0)\n')
@@ -423,7 +430,7 @@ def cgen_compare(rexp: TreeNode, next=False):
   
   comparison_type = rexp.child('REXP_R').child('REXP_D').children[0].token
   if (comparison_type == '<'):
-    cgen_grt_than(rexp.child('REXP_R'))
+    cgen_ls_than(rexp.child('REXP_R'))
     
   elif (comparison_type == '=='):
     cgen_equality(rexp.child('REXP_R'))
@@ -432,7 +439,7 @@ def cgen_compare(rexp: TreeNode, next=False):
     cgen_difference(rexp.child('REXP_R'))
 
 
-def cgen_grt_than(rexp_r: TreeNode):
+def cgen_ls_than(rexp_r: TreeNode):
   file_write('sw $a0, 0($sp)\n')
   file_write('addiu $sp, $sp, -4\n')
   
@@ -645,23 +652,45 @@ def cgen_base_exp(base_exp: TreeNode):
 
 
 def cgen_alloc_array(exp: TreeNode):
-    cgen_exp(exp)               # $a0 contem o tamanho do vetor
+    cgen_exp(exp)                       # $a0 contem o tamanho do vetor
     
     file_write('li $t1, 4\n')
-    file_write('mul $t1, $t1, $a0\n')  # $t1 tem 4 * $a0
-    file_write('move $a0, $sp\n')       # $a0 aponta para o inicio da lista
-    file_write('sub $sp, $sp, $t1\n')
+    file_write('mul $t1, $t1, $a0\n')   # $t1 = 4 * $a0
+    file_write('sw $a0, 0($sp)\n')      # armazenar o tam. do vetor
+    file_write('move $a0, $sp\n')       # $a0 -> tam. do vetor
+    file_write('sub $sp, $sp, $t1\n')   # empilha 4 * tam. endereços
 
 
 def cgen_pexp_tail(pexp_tail: TreeNode):
-  first_child = pexp_tail.children[0]
-  if (first_child.token == '['):
-    #CASO: PEXP_TAIL -> [ EXP ] => Vetor de EXP posições
-    cgen_exp(first_child.children[1])
+  id_node = pexp_tail.parent.child('PEXP').children[0]
+  if(id_node.token == 'id'):
+    var_id = id_node.lexeme
+    offset = get_var(var_id)['offset']
+    
+    first_child = pexp_tail.children[0]
+    if (first_child.token == '['):
+      #CASO: PEXP_TAIL -> [ EXP ] => Vetor de EXP posições
+      cgen_exp(pexp_tail.children[1]) # $a0 = index
+      
+      file_write(f'lw $t1, {offset}($fp)\n')
+      file_write(f'lw $t1, 0($t1)\n')
+      file_write(f'slt $t1, $a0, $t1\n') # $a0 < offset($fp)
+      file_write('beq $t1, $zero, prog_end\n') # Encerra se fora do intervalo
+      
+      file_write('li $t1, 4\n')
+      file_write('mul $a0, $a0, $t1\n') # $a0 = offset do index
+      
+      file_write(f'lw $t1, {offset}($fp)\n')
+      file_write(f'addiu $t1, $t1, -4\n') # $t1 -> ender. elemento 0
+      file_write('sub $t1, $t1, $a0\n') # $t1 -> ender. elemento index
+      file_write('lw $a0, 0($t1)\n') # $a0 = vetor[$t1]
+      
+    else:
+      # CASO: BASE_SXP -> id .lenght
+      file_write(f'lw $a0, {offset}($fp)\n')
+      
   else:
-    #CASO: PEXP_TAIL -> .length
-    # TODO: Implementar funcao que recupera o tamanho de um vetor
-    ...
+    file_write('j prog_end\n')
 
 
 def cgen_pexp(pexp: TreeNode):
