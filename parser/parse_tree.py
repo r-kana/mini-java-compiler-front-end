@@ -30,5 +30,8 @@ class TreeNode:
   
   def is_empty(self):
     return self.children[0].token == EPSILON
+  
+  def __str__(self):
+    return f"TreeNode: {'{'} {self.token}: {self.lexeme} {'}'}"
     
   
