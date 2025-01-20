@@ -1,25 +1,33 @@
-class Factorial{
+class ClassMain{
     public static void main(String[] a){
-        System.out.println(10);
+        System.out.println(new Exemplo2().metodoC(0));
     }
 }
+
 class Exemplo1{
-    public boolean metodoA(int a){
-        System.out.println(new b().metodoB(10));
-        return 100;
+    int e;
+
+    public int metodoA(int a){
+        int b;
+        int c;
+        b = 2;
+        c = a + b + 167;
+        return c;
     }
 }
+
 class Exemplo2{
     public int metodoC(int a){
-        int[] myIntArray;
-        myIntArray = new int[100];
-        System.out.println(myIntArray.length);
-        if(a < 10){
-            System.out.println(10);
+        int[] intArray;
+        int b;
+        intArray = new int[20];
+        intArray[0] = 1;
+        if(a < 55){
+            b = intArray[0];
         }
         else{
-            System.out.println(100);
+            b = 73;
         }
-        return a ;
+        return b ;
     }
 }
