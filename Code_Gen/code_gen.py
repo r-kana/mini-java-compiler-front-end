@@ -204,8 +204,10 @@ def cgen_metodo(metodo: TreeNode):
   vars_len = len(CLASS_METHODS[current_class]['methods'][current_method]['vars'])
   params_len = len(CLASS_METHODS[current_class]['methods'][current_method]['params'])
   
-  print(f"lw $ra, {4 * (class_vars_len + vars_len + 1)}($sp)\n") # offset = method vars + class vars
-  print(f"addiu $sp, $sp, {8 + 4 * (vars_len + params_len + class_vars_len)}\n")
+  # print(f"lw $ra, {4 * (class_vars_len + vars_len + 1)}($fp)\n") # offset = method vars + class vars
+  print(f"lw $ra, 0($fp)\n")
+  # print(f"addiu $sp, $sp, {8 + 4 * (vars_len + params_len + class_vars_len)}\n")
+  print(f"addiu $sp, $fp, {4 + 4 * (params_len)}\n")
   print("lw $fp, 0($sp)\n")
   print("jr $ra\n")
 
@@ -413,7 +415,7 @@ def cgen_compare(rexp: TreeNode, next=False):
   if (not next):
     cgen_aexp(rexp.child('AEXP'))
   
-  comparison_type = rexp.child('REXP_R').child('REXP_D').children[0]
+  comparison_type = rexp.child('REXP_R').child('REXP_D').children[0].token
   if (comparison_type == '<'):
     cgen_grt_than(rexp.child('REXP_R'))
     
