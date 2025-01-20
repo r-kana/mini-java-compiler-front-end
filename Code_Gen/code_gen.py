@@ -1,13 +1,16 @@
 from Parser.parse_tree import TreeNode
 
+FILE_PATH = "code_gen.s"
 
-register_table = {
-  'r0': '$a0',
-  'sp': '$sp',
-  't1': '$t1',
-}
+file = None
+
+def file_write(file_text: str):
+  global file
+  file.write(file_text)
+
 
 label_counter = 0
+
 
 def create_label() -> str:
   global label_counter
@@ -137,7 +140,10 @@ def print_ast(root, level=0):
     print(f"{tab}( {root.token} ): {root.lexeme}")
     
 def code_gen(root):
+  global file
+  file = open(FILE_PATH, 'a')
   cgen_prog(root.children[0])
+  file.close()
 
 
 ############################# CGEN METHODS #############################
@@ -145,12 +151,12 @@ def code_gen(root):
 def cgen_prog(prog: TreeNode):
   cgen_main(prog.children[0])
   cgen_class_list(prog.children[1])
-  print('prog_end:\n')
+  file_write('prog_end:\n')
 
 
 def cgen_main(main: TreeNode):
   cgen_cmd(main.child('CMD'))
-  print('j prog_end\n')
+  file_write('j prog_end\n')
 
 
 def cgen_class_list(class_list: TreeNode):
@@ -193,10 +199,10 @@ def cgen_metodo(metodo: TreeNode):
   set_current_method(metodo.children[2].lexeme)
   add_method(metodo.children[2].lexeme)
   
-  print(f"{metodo.child('id').lexeme}_entry:\n")
-  print("move $fp, $sp\n")
-  print("sw $ra, 0($sp)\n")
-  print("addiu $sp, $sp, -4\n")
+  file_write(f"{metodo.child('id').lexeme}_entry:\n")
+  file_write("move $fp, $sp\n")
+  file_write("sw $ra, 0($sp)\n")
+  file_write("addiu $sp, $sp, -4\n")
   
   cgen_metodo_d(metodo.child('METODO_D'))
   current_method = get_current_method()
@@ -204,12 +210,12 @@ def cgen_metodo(metodo: TreeNode):
   vars_len = len(CLASS_METHODS[current_class]['methods'][current_method]['vars'])
   params_len = len(CLASS_METHODS[current_class]['methods'][current_method]['params'])
   
-  # print(f"lw $ra, {4 * (class_vars_len + vars_len + 1)}($fp)\n") # offset = method vars + class vars
-  print(f"lw $ra, 0($fp)\n")
-  # print(f"addiu $sp, $sp, {8 + 4 * (vars_len + params_len + class_vars_len)}\n")
-  print(f"addiu $sp, $fp, {4 + 4 * (params_len)}\n")
-  print("lw $fp, 0($sp)\n")
-  print("jr $ra\n")
+  # file_write(f"lw $ra, {4 * (class_vars_len + vars_len + 1)}($fp)\n") # offset = method vars + class vars
+  file_write(f"lw $ra, 0($fp)\n")
+  # file_write(f"addiu $sp, $sp, {8 + 4 * (vars_len + params_len + class_vars_len)}\n")
+  file_write(f"addiu $sp, $fp, {4 + 4 * (params_len)}\n")
+  file_write("lw $fp, 0($sp)\n")
+  file_write("jr $ra\n")
 
 
 def cgen_metodo_d(metodo_d: TreeNode): 
@@ -239,7 +245,7 @@ def cgen_params_list(params_list: TreeNode, position: int):
 def cgen_var_list(var_list: TreeNode):
   add_var(var_list.children[0].children[1].lexeme)
   
-  print('addiu $sp, $sp, -4\n')
+  file_write('addiu $sp, $sp, -4\n')
   
   if (not var_list.children[1].is_empty()):
     cgen_var_list(var_list.children[1])
@@ -249,7 +255,7 @@ def cgen_class_vars():
   global current_class
   
   for _ in CLASS_METHODS[current_class]['vars']:
-    print('addiu $sp, $sp, -4\n')
+    file_write('addiu $sp, $sp, -4\n')
 
 
 def cgen_cmd_list(cmd_list: TreeNode):
@@ -289,39 +295,39 @@ def cgen_if(cmd: TreeNode):
   label = create_label()
   cgen_exp(cmd.children[2])
   
-  print(f"beq $a0, $zero, {label}_if_false\n")
+  file_write(f"beq $a0, $zero, {label}_if_false\n")
   
   cgen_cmd(cmd.children[4])
   
-  print(f"b {label}_end_if\n")
-  print(f"{label}_if_false:\n")
+  file_write(f"b {label}_end_if\n")
+  file_write(f"{label}_if_false:\n")
   
   cgen_cmd(cmd.children[6])
   
-  print(f"{label}_end_if:\n")
+  file_write(f"{label}_end_if:\n")
 
 
 def cgen_while(cmd: TreeNode):
   # while ( EXP ) CMD
   label = create_label()
   
-  print(f"{label}_start:\n")
+  file_write(f"{label}_start:\n")
   
   cgen_exp(cmd.children[2])
   
-  print(f"beq $a0, $zero, {label}_end\n")
+  file_write(f"beq $a0, $zero, {label}_end\n")
   
   cgen_cmd(cmd.children[4])
   
-  print(f"j {label}_start\n")
-  print(f"{label}_end:\n")
+  file_write(f"j {label}_start\n")
+  file_write(f"{label}_end:\n")
 
 
 def cgen_print(exp: TreeNode):
   cgen_exp(exp)
   
-  print("li $v0, 1\n")
-  print("syscall\n")
+  file_write("li $v0, 1\n")
+  file_write("syscall\n")
 
 
 def cgen_attribution(cmd: TreeNode):
@@ -332,7 +338,7 @@ def cgen_attribution(cmd: TreeNode):
   cmd_d = cmd.children[1]
   cgen_exp(cmd_d.children[1])
   
-  print(f'sw $a0, {offset}($fp)\n')
+  file_write(f'sw $a0, {offset}($fp)\n')
 
 
 def cgen_array_attribution(cmd: TreeNode):
@@ -342,20 +348,20 @@ def cgen_array_attribution(cmd: TreeNode):
   cmd_d = cmd.child('CMD_D')
   cgen_exp(cmd_d.children[4]) # Valor
   
-  print('sw $a0, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $a0, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
 
   cgen_exp(cmd_d.children[1]) # Array index
   
-  print('li $t1, 4\n')
-  print('mul $a0, $a0, $t1\n')
+  file_write('li $t1, 4\n')
+  file_write('mul $a0, $a0, $t1\n')
   
-  print(f'lw $t1, {offset}($fp)\n')
-  print('sub $a0, $t1, $a0\n')
-  print('lw $t1, 4($sp)\n')
-  print('sw $t1, 0($a0)\n')
+  file_write(f'lw $t1, {offset}($fp)\n')
+  file_write('sub $a0, $t1, $a0\n')
+  file_write('lw $t1, 4($sp)\n')
+  file_write('sw $t1, 0($a0)\n')
   
-  print('addiu $sp, $sp, 4\n')
+  file_write('addiu $sp, $sp, 4\n')
 
 
 def cgen_exp(exp: TreeNode):
@@ -370,17 +376,17 @@ def cgen_and(exp: TreeNode):
   label = create_label()
   cgen_rexp(exp.child('REXP'))
   
-  print(f'beq $a0, $zero, {label}_and_false\n')
+  file_write(f'beq $a0, $zero, {label}_and_false\n')
   
   exp_r = exp.child('EXP_R')
   cgen_rexp(exp_r.child('REXP'))
   
-  print(f'beq $a0, $zero, {label}_and_false\n')
-  print('li $a0, 1\n')
-  print(f'j {label}_and_end\n')
-  print(f'{label}_and_false:\n')
-  print('li $a0, 1\n')
-  print(f'{label}_and_end:\n')
+  file_write(f'beq $a0, $zero, {label}_and_false\n')
+  file_write('li $a0, 1\n')
+  file_write(f'j {label}_and_end\n')
+  file_write(f'{label}_and_false:\n')
+  file_write('li $a0, 1\n')
+  file_write(f'{label}_and_end:\n')
   
   if(not exp_r.child('EXP_R').is_empty()):
     cgen_next_and(exp_r.child('EXP_R'))
@@ -389,16 +395,16 @@ def cgen_and(exp: TreeNode):
 def cgen_next_and(exp_r: TreeNode):
   label = create_label()
   
-  print(f'beq $a0, $zero, {label}_and_false\n')
+  file_write(f'beq $a0, $zero, {label}_and_false\n')
   
   cgen_rexp(exp_r.child('REXP'))
   
-  print(f'beq $a0, $zero, {label}_and_false\n')
-  print('li $a0, 1\n')
-  print('j _and_end\n')
-  print(f'{label}_and_false:\n')
-  print('li $a0, 1\n')
-  print(f'{label}_and_end:\n')
+  file_write(f'beq $a0, $zero, {label}_and_false\n')
+  file_write('li $a0, 1\n')
+  file_write('j _and_end\n')
+  file_write(f'{label}_and_false:\n')
+  file_write('li $a0, 1\n')
+  file_write(f'{label}_and_end:\n')
   
   if(not exp_r.child('EXP_R').is_empty()):
     cgen_next_and(exp_r)
@@ -427,29 +433,29 @@ def cgen_compare(rexp: TreeNode, next=False):
 
 
 def cgen_grt_than(rexp_r: TreeNode):
-  print('sw $a0, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $a0, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
   
   cgen_aexp(rexp_r.child('REXP_D').child('AEXP'))
   
-  print('lw $t1, 4($sp)\n')
-  print('slt $a0, $t1, $a0\n')
-  print('addiu $sp, $sp, 4\n')
+  file_write('lw $t1, 4($sp)\n')
+  file_write('slt $a0, $t1, $a0\n')
+  file_write('addiu $sp, $sp, 4\n')
   
   if (not rexp_r.child('REXP_R').is_empty()):
     cgen_compare(rexp_r.child('REXP_R'), True)
 
 
 def cgen_equality(rexp_r: TreeNode):
-  print('sw $a0, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $a0, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
   
   cgen_aexp(rexp_r.child('REXP_D').child('AEXP'))
   
-  print('lw $t1, 4($sp)\n')
-  print('xor $a0, $t1, $a0\n')
-  print('slti $a0, $a0, 1\n')
-  print('addiu $sp, $sp, 4\n')
+  file_write('lw $t1, 4($sp)\n')
+  file_write('xor $a0, $t1, $a0\n')
+  file_write('slti $a0, $a0, 1\n')
+  file_write('addiu $sp, $sp, 4\n')
   
   if (not rexp_r.child('REXP_R').is_empty()):
     cgen_compare(rexp_r.child('REXP_R'), True)
@@ -457,15 +463,15 @@ def cgen_equality(rexp_r: TreeNode):
 
 
 def cgen_difference(rexp_r: TreeNode):
-  print('sw $a0, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $a0, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
   
   cgen_aexp(rexp_r.child('REXP_D').child('AEXP'))
   
-  print('lw $t1, 4($sp)\n')
-  print('xor $a0, $t1, $a0\n')
-  print('sltu $a0, $zero, $a0\n')
-  print('addiu $sp, $sp, 4\n')
+  file_write('lw $t1, 4($sp)\n')
+  file_write('xor $a0, $t1, $a0\n')
+  file_write('sltu $a0, $zero, $a0\n')
+  file_write('addiu $sp, $sp, 4\n')
   
   if (not rexp_r.child('REXP_R').is_empty()):
     cgen_compare(rexp_r.child('REXP_R'), True)
@@ -485,15 +491,15 @@ def cgen_aexp(aexp: TreeNode):
 def cgen_add(aexp: TreeNode): 
   cgen_mexp(aexp.child('MEXP'))
   
-  print('sw $a0, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $a0, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
   
   mexp = aexp.child('AEXP_R').child('AEXP_D').child('MEXP')
   cgen_mexp(mexp)
   
-  print('lw $t1, 4($sp)\n')
-  print('add $a0, $t1, $a0\n')
-  print('addiu $sp, $sp, 4\n')
+  file_write('lw $t1, 4($sp)\n')
+  file_write('add $a0, $t1, $a0\n')
+  file_write('addiu $sp, $sp, 4\n')
   
   next_aexp_r = aexp.child('AEXP_R').child('AEXP_R')
   if (not next_aexp_r.is_empty()):
@@ -506,15 +512,15 @@ def cgen_add(aexp: TreeNode):
 def cgen_sub(aexp: TreeNode):
   cgen_mexp(aexp.child('MEXP'))
   
-  print('sw $a0, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $a0, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
   
   mexp = aexp.child('AEXP_R').child('AEXP_D').child('MEXP')
   cgen_mexp(mexp)
   
-  print('lw $t1, 4($sp)\n')
-  print('sub $a0, $t1, $a0\n')
-  print('addiu $sp, $sp, 4\n')
+  file_write('lw $t1, 4($sp)\n')
+  file_write('sub $a0, $t1, $a0\n')
+  file_write('addiu $sp, $sp, 4\n')
   
   next_aexp_r = aexp.child('AEXP_R').child('AEXP_R')
   if (not next_aexp_r.is_empty()):
@@ -525,15 +531,15 @@ def cgen_sub(aexp: TreeNode):
 
 
 def cgen_next_add(aexp_r: TreeNode):
-  print('sw $a0, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $a0, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
   
   mexp = aexp_r.child('AEXP_D').child('MEXP')
   cgen_mexp(mexp)
   
-  print('lw $t1, 4($sp)\n')
-  print('add $a0, $t1, $a0\n')
-  print('addiu $sp, $sp, 4\n')
+  file_write('lw $t1, 4($sp)\n')
+  file_write('add $a0, $t1, $a0\n')
+  file_write('addiu $sp, $sp, 4\n')
   
   next_aexp_r = aexp_r.child('AEXP_R')
   if (not next_aexp_r.is_empty()):
@@ -544,15 +550,15 @@ def cgen_next_add(aexp_r: TreeNode):
 
 
 def cgen_next_sub(aexp_r: TreeNode):
-  print('sw $a0, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $a0, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
   
   mexp = aexp_r.child('AEXP_D').child('MEXP')
   cgen_mexp(mexp)
   
-  print('lw $t1, 4($sp)\n')
-  print('sub $a0, $t1, $a0\n')
-  print('addiu $sp, $sp, 4\n')
+  file_write('lw $t1, 4($sp)\n')
+  file_write('sub $a0, $t1, $a0\n')
+  file_write('addiu $sp, $sp, 4\n')
   
   next_aexp_r = aexp_r.child('AEXP_R')
   if (not next_aexp_r.is_empty()):
@@ -572,15 +578,15 @@ def cgen_mexp(mexp: TreeNode):
 def cgen_mul(mexp: TreeNode):
   cgen_sexp(mexp.child('SEXP'))
   
-  print('sw $a0, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $a0, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
   
   mexp_r = mexp.child('MEXP_R')
   cgen_sexp(mexp_r.child('SEXP'))
 
-  print('lw $t1, 4($sp)\n')
-  print('mul $a0, $t1, $a0\n')
-  print('addiu $sp, $sp, 4\n')
+  file_write('lw $t1, 4($sp)\n')
+  file_write('mul $a0, $t1, $a0\n')
+  file_write('addiu $sp, $sp, 4\n')
 
   next_mexp_r = mexp_r.child('MEXP_R')
   if(not next_mexp_r.is_empty()):
@@ -588,14 +594,14 @@ def cgen_mul(mexp: TreeNode):
 
 
 def cgen_next_mul(mexp_r: TreeNode):
-  print('sw $a0, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $a0, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
   
   cgen_sexp(mexp_r.child('SEXP'))
 
-  print('lw $t1, 4($sp)\n')
-  print('mul $a0, $t1, $a0\n')
-  print('addiu $sp, $sp, 4\n')
+  file_write('lw $t1, 4($sp)\n')
+  file_write('mul $a0, $t1, $a0\n')
+  file_write('addiu $sp, $sp, 4\n')
 
   next_mul = mexp_r.child('MEXP_R')
   if(not next_mul.is_empty()):
@@ -606,7 +612,7 @@ def cgen_sexp(sexp: TreeNode):
   if (sexp.children[0].token == 'PREFIX'):
     cgen_sexp(sexp.child('SEXP'))
     
-    print('subu $a0, $zero, $a0\n')
+    file_write('subu $a0, $zero, $a0\n')
     
   else:
     cgen_base_exp(sexp.child('BASE_SXP'))
@@ -622,16 +628,16 @@ def cgen_base_exp(base_exp: TreeNode):
       cgen_pexp_tail(pexp_tail)
     
   elif (first_child.token == 'true'):
-    print('li $a0, 1\n')
+    file_write('li $a0, 1\n')
 
   elif (first_child.token == 'false'):
-    print('li $a0, 0\n')
+    file_write('li $a0, 0\n')
 
   elif (first_child.token == 'num'):
-    print(f"li $a0, {first_child.lexeme}\n")
+    file_write(f"li $a0, {first_child.lexeme}\n")
 
   elif (first_child.token == 'null'):
-    print('li $a0, 0\n')
+    file_write('li $a0, 0\n')
 
   elif (first_child.token == 'new int'):
     # CASO:  new int [ EXP ]
@@ -641,10 +647,10 @@ def cgen_base_exp(base_exp: TreeNode):
 def cgen_alloc_array(exp: TreeNode):
     cgen_exp(exp)               # $a0 contem o tamanho do vetor
     
-    print('li $t1, 4\n')
-    print('mul $t1, $t1, $a0\n')  # $t1 tem 4 * $a0
-    print('move $a0, $sp\n')       # $a0 aponta para o inicio da lista
-    print('sub $sp, $sp, $t1\n')
+    file_write('li $t1, 4\n')
+    file_write('mul $t1, $t1, $a0\n')  # $t1 tem 4 * $a0
+    file_write('move $a0, $sp\n')       # $a0 aponta para o inicio da lista
+    file_write('sub $sp, $sp, $t1\n')
 
 
 def cgen_pexp_tail(pexp_tail: TreeNode):
@@ -669,15 +675,15 @@ def cgen_pexp(pexp: TreeNode):
         # PEXP_TAIL -> [ EXP ]
         cgen_exp(pexp_tail.children[1])
         
-        print('li $t1, 4\n')
-        print('mul $a0, $a0, $t1\n')
+        file_write('li $t1, 4\n')
+        file_write('mul $a0, $a0, $t1\n')
         
-        print(f'lw $t1, {offset}($fp)\n')
-        print('sub $a0, $t1, $a0\n')
-        print('lw $a0, 0($a0)\n')
+        file_write(f'lw $t1, {offset}($fp)\n')
+        file_write('sub $a0, $t1, $a0\n')
+        file_write('lw $a0, 0($a0)\n')
         
       elif(pexp.parent.child('PEXP_TAIL').is_empty()):
-        print(f'lw $a0, {offset}($fp)\n')
+        file_write(f'lw $a0, {offset}($fp)\n')
         
     else:
       cgen_rest_pexp(pexp.child('REST_PEXP'))
@@ -730,12 +736,12 @@ def cgen_opt_exps(opt_exps: TreeNode):
   #CASO: REST_PEXP -> . id ( EXPS ) REST_PEXP => Chama de função. 
   #   EXPS são parametros da função
   metodo_id = opt_exps.parent.parent.child('id').lexeme
-  print('sw $fp, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $fp, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
   
   cgen_exps(opt_exps.children[0])
   
-  print(f"jal {metodo_id}_entry\n")
+  file_write(f"jal {metodo_id}_entry\n")
 
 
 def cgen_exps(exps: TreeNode):
@@ -746,8 +752,8 @@ def cgen_exps(exps: TreeNode):
   cgen_exp(exps.children[0])
   add_call_param('', method_call_id, class_call_id)
   
-  print('sw $a0, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $a0, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
 
 
 def cgen_more_exps(exps: TreeNode):
@@ -758,5 +764,5 @@ def cgen_more_exps(exps: TreeNode):
   cgen_exp(exps.children[1])
   add_call_param('', method_call_id, class_call_id)
   
-  print('sw $a0, 0($sp)\n')
-  print('addiu $sp, $sp, -4\n')
+  file_write('sw $a0, 0($sp)\n')
+  file_write('addiu $sp, $sp, -4\n')
