@@ -18,7 +18,7 @@ class MiniJava:
         except IOError as e:
             print(f"Erro ao ler o arquivo: {e}")
 
-            if (MiniJava.hadError):
+            if (MiniJava.had_error):
                 exit(65)
 
     @staticmethod
@@ -28,15 +28,11 @@ class MiniJava:
         # for token in tokens:
         #     print(token)
         return tokens
-    
-    
+
+
     @staticmethod
     def report(line, where, message):
         print(f"[line {line}] Error{where}: {message}", file=sys.stderr)
 
         global had_error
         MiniJava.had_error = True
-
-
-if __name__ == "__main__":
-    MiniJava.main()

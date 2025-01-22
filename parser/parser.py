@@ -163,7 +163,7 @@ def parser (tokens: list[Token]):
     elif (is_terminal_symbol(stack_input)):
       if (stack_input == tokens[cursor].value):
         if (stack_input != '$') :
-          tree_node = TreeNode(parent_stack[-1], STACK.pop(), tokens[cursor].lexeme)
+          tree_node = TreeNode(parent_stack[-1], STACK.pop(), tokens[cursor].lexeme, tokens[cursor].literal)
           parent_stack[-1].children.append(tree_node)
           
           if (parent_stack[-1].is_complete()):
@@ -207,3 +207,5 @@ def parser (tokens: list[Token]):
     else:
       end_of_input = True
       print("ERRO:\n  Falha de parser: Simmbolo não é nem terminal nem não-terminal")
+      
+  return ROOT
