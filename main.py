@@ -9,9 +9,9 @@ token: list[Token]
 tokens = MiniJava.main('./example.java')
 
 parser(tokens)
-# print('AST:\n')
-# print_ast(ROOT)
-# print('\n')
+print('AST:\n')
+print_ast(ROOT)
+print('\n')
 semantic_analysis(ROOT)
 print('Code Gen:\n')
 code_gen(ROOT)
