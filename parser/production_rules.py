@@ -38,7 +38,7 @@ PARSING_TABLE = {
   'public': {
     'VAR_LIST': EPSILON,
     'METODO_LIST': ['METODO', 'METODO_LIST'],
-    'METODO': ['public', 'TIPO' 'id' '(', 'METODO_D']
+    'METODO': ['public', 'TIPO', 'id', '(', 'METODO_D']
   },
   
   '(': {

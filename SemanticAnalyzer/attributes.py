@@ -1,86 +1,105 @@
+from Parser.parse_tree import TreeNode
+from SemanticAnalyzer.symbol_table import SymbolTable
 class Attributes:
-    def __init__(self, symbol_table):
+    def __init__(self, symbol_table: SymbolTable):
         self.symbol_table = symbol_table
 
-    def process_EXP(self, expr):
+
+    def process_EXP(self, exp: TreeNode) -> str:
         """Processa expressões dentro do código"""
-        if expr.type == "const":
-            return self.determine_constant_type(expr.value)
+        if exp.token == "EXP":
+            if not exp.child('EXP_R').is_empty():
+                return "boolean"
+            else:
+                return self.process_EXP(exp.children[0])
+            
+        if exp.token == "REXP":
+            if not exp.child('REXP_R').is_empty():
+                return "boolean"
+            else:
+                return self.process_EXP(exp.children[0])
+            
+        if exp.token == "AEXP":
+            if not exp.child('AEXP_R').is_empty():
+                return "int"
+            else:
+                return self.process_EXP(exp.children[0])
+            
+        if exp.token == "MEXP":
+            if not exp.child('MEXP_R').is_empty():
+                return "int"
+            else:
+                return self.process_EXP(exp.children[0])
+            
+        if exp.token == "SEXP":
+            if exp.child('SEXP') is not None:
+                return self.process_EXP(exp.child('SEXP'))
+            else:
+                return self.process_EXP(exp.child('BASE_SXP'))
+            
+        if exp.token == "BASE_SXP":
+            first_child = exp.children[0].token
+            if first_child == 'true' or first_child == 'false' or first_child == 'null' :
+                return "boolean"
+            elif first_child == 'new int' or first_child == 'num':
+                return "int"
+            else:
+                return self.process_EXP(exp.child('PEXP'))
+            
+        if exp.token == "PEXP":
+            if exp.child('EXP') is not None: # PEXP -> ( EXP ) REST_PEXP
+                return self.process_EXP(exp.child('EXP'))
+            
+            elif exp.child("id").lexeme: # PEXP -> id REST_PEXP
+                return self.symbol_table.get_variable_type(exp.child("id").lexeme)
+            
+            else:
+                return "int"
 
-        elif expr.type == "binop":
-            left_value = self.process_EXP(expr.left)
-            right_value = self.process_EXP(expr.right)
-            return self.check_binop_types(expr, left_value, right_value)
 
-        elif expr.type == "unop":
-            inner_value = self.process_EXP(expr.expr)
-            return self.check_unop_type(expr, inner_value)
+    def process_CALL(self, metodo: TreeNode):
+        if metodo.children[0] == '.' : # REST_PEXP -> . id REST_PEXP_TAIL
+            method_args: list[TreeNode]
+            method_args = []
+            metodo_id = metodo.child('id').lexeme
+            if not self.symbol_table.is_method_declared(metodo_id):
+                raise Exception(f"Erro: Método '{metodo_id}' não declarado.")
 
-        elif expr.type == "var":
-            return self.process_var(expr)
+            declared_params = self.symbol_table.get_method_params(metodo_id)        
+            opt_exps = metodo.child('REST_PEXP_TAIL').child('OPT_EXPS')
+            if not opt_exps.is_empty():
+                exps = opt_exps.child('EXPS')
+                more_exps = exps.child('MORE_EXPS')
+                method_args.append(exps.child('EXP'))
+                while not more_exps.is_empty():
+                    method_args.append(more_exps.child('EXP'))
+                    more_exps = more_exps.child('MORE_EXPS')
 
-        elif expr.type == "call":
-            return self.process_CALL(expr.call)
-
-    def determine_constant_type(self, value):
-        """Determina o tipo de uma constante"""
-        if isinstance(value, bool):
-            return "boolean"
-        elif isinstance(value, int):
-            return "int"
-        elif value is None:
-            return "null"
-        else:
-            raise Exception(f"Erro: Tipo desconhecido para constante '{value}'.")
-
-    def check_binop_types(self, expr, left_value, right_value):
-        """Verifica os tipos de operandos para operações binárias"""
-        if expr.op in ["&&", "||"]:
-            if left_value != "boolean" or right_value != "boolean":
-                raise Exception("Erro: Operadores lógicos requerem operandos do tipo 'boolean'.")
-            return "boolean"
-        elif expr.op in ["+", "-", "*"]:
-            if left_value != "int" or right_value != "int":
-                raise Exception("Erro: Operadores aritméticos requerem operandos do tipo 'int'.")
-            return "int"
-        else:
-            raise Exception(f"Erro: Operação binária '{expr.op}' incompatível.")
-
-    def check_unop_type(self, expr, value):
-        """Verifica os tipos de operandos para operações unárias"""
-        if expr.op == "!":
-            if value != "boolean":
-                raise Exception("Erro: Operador '!' requer um operando do tipo 'boolean'.")
-            return "boolean"
-        elif expr.op == "-":
-            if value != "int":
-                raise Exception("Erro: Operador '-' requer um operando do tipo 'int'.")
-            return "int"
-        else:
-            raise Exception(f"Erro: Operação unária '{expr.op}' incompatível.")
-
-    def process_CALL(self, call):
-        if not self.symbol_table.is_method_declared(call.method_id):
-            raise Exception(f"Erro: Método '{call.method_id}' não declarado.")
-
-        declared_params = self.symbol_table.get_method_params(call.method_id)
-
-        if len(call.arguments) != len(declared_params):
-            raise Exception(
-                f"Erro: Método '{call.method_id}' esperado {len(declared_params)} argumentos, "
-                f"mas recebeu {len(call.arguments)}."
-            )
-
-        for arg, param in zip(call.arguments, declared_params):
-            arg_type = self.process_EXP(arg)
-            if arg_type != param.tipo:
+            if len(method_args) != len(declared_params):
+                call_id_print   = metodo_id
+                len_params      = len(declared_params)
+                call_params     = method_args
+                
                 raise Exception(
-                    f"Erro: Tipo do argumento '{arg}' ({arg_type}) incompatível com o parâmetro '{param.id}' ({param.tipo})."
+                    f"Erro: Método '{call_id_print}' esperado {len_params} argumentos, "
+                    f"mas recebeu {call_params}."
                 )
 
-    def process_VAR(self, var):
-        """Adiciona uma variável à tabela de símbolos após checar se já foi declarada"""
-        if self.symbol_table.is_variable_declared(var.id):
-            raise Exception(f"Erro: Variável '{var.id}' já declarada.")
+            for arg, param in zip(method_args, declared_params):
+                arg_type = self.process_EXP(arg)
+                if arg_type != param['tipo']:
+                    raise Exception(
+                        f"Erro: Tipo do argumento '{arg}' ({arg_type}) incompatível com o parâmetro '' ()."
+                    )
+        else: 
+            self.process_EXP(metodo.child('EXP'))
 
-        self.symbol_table.add_variable(var.id, var.tipo)
+
+    def process_VAR(self, var: TreeNode):
+        var_id = var.child("id").lexeme
+        """Adiciona uma variável à tabela de símbolos após checar se já foi declarada"""
+        if self.symbol_table.is_variable_declared(var_id):
+            raise Exception(f"Erro: Variável '{var_id}' já declarada.")
+
+        var_type = var.child("TIPO").children[0].token
+        self.symbol_table.add_variable(var_id, var_type)

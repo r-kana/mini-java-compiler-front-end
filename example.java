@@ -6,7 +6,6 @@ class ClassMain{
 
 class Exemplo1{
     int e;
-
     public int metodoA(int a){
         int b;
         int c;
@@ -15,6 +14,7 @@ class Exemplo1{
         return c;
     }
 }
+
 
 class Exemplo2{
     public int metodoC(int a){
